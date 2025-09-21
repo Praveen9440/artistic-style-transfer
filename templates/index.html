@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Artistic Style Transfer</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
+        :root {
+            --primary-color: #6a11cb;
+            --secondary-color: #2575fc;
+            --background-color: #f4f7fc;
+            --card-background-color: #ffffff;
+            --text-color: #333;
+            --light-gray: #e0e0e0;
+            --success-color: #4CAF50;
+        }
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 2rem;
+            display: flex;
+            justify-content: center;
+        }
+        .container { max-width: 1000px; width: 100%; }
+        header { text-align: center; margin-bottom: 2.5rem; }
+        header h1 { font-size: 2.8rem; font-weight: 700; background: linear-gradient(45deg, var(--primary-color), var(--secondary-color)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0; }
+        header p { font-size: 1.1rem; color: #666; margin-top: 0.5rem; }
+        .main-content { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem; }
+        .card { background-color: var(--card-background-color); border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); padding: 1.5rem; text-align: center; }
+        .card h2 { margin-top: 0; font-size: 1.5rem; color: var(--text-color); }
+        .settings-card { grid-column: 1 / -1; text-align: left; }
+        .slider-group { margin-bottom: 1rem; }
+        .slider-group label { display: block; margin-bottom: 0.5rem; font-weight: 600; }
+        .slider-group span { font-family: monospace; background: #eee; padding: 2px 6px; border-radius: 4px; }
+        .slider { -webkit-appearance: none; width: 100%; height: 10px; border-radius: 5px; background: #d3d3d3; outline: none; opacity: 0.7; transition: opacity .2s; }
+        .slider:hover { opacity: 1; }
+        .slider:disabled { opacity: 0.4; cursor: not-allowed; } /* Style for disabled slider */
+        .slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 20px; height: 20px; border-radius: 50%; background: var(--secondary-color); cursor: pointer; }
+        .slider::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: var(--secondary-color); cursor: pointer; }
+        .image-preview-container { width: 100%; height: 250px; border: 2px dashed var(--light-gray); border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; overflow: hidden; background-color: #f8f9fa; }
+        .image-preview { width: 100%; height: 100%; object-fit: cover; display: none; }
+        .image-preview.active { display: block; }
+        .upload-label { display: inline-block; padding: 0.8rem 1.5rem; background: linear-gradient(45deg, var(--primary-color), var(--secondary-color)); color: white; border-radius: 8px; cursor: pointer; font-weight: 600; transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        .upload-label:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(37, 117, 252, 0.3); }
+        .upload-label:disabled { background: #aaa; cursor: not-allowed; transform: none; box-shadow: none; }
+        input[type="file"] { display: none; }
+        input[type="file"]:disabled + .upload-label { cursor: not-allowed; }
+        /* General rule for all disabled elements */
+        *:disabled { cursor: not-allowed !important; }
+        .actions { text-align: center; margin: 2rem 0; display: flex; justify-content: center; gap: 1rem; }
+        #stylize-btn { padding: 1rem 3rem; font-size: 1.2rem; font-weight: 600; background: linear-gradient(45deg, var(--success-color), #388E3C); color: white; border: none; border-radius: 8px; cursor: pointer; transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        #stylize-btn:disabled { background: #aaa; cursor: not-allowed; transform: none; box-shadow: none; }
+        #stylize-btn:hover:not(:disabled) { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(76, 175, 80, 0.35); }
+        #reset-btn { padding: 1rem 2rem; font-size: 1.2rem; font-weight: 600; background: #6c757d; color: white; border: none; border-radius: 8px; cursor: pointer; transition: background-color 0.2s ease; }
+        #reset-btn:hover { background-color: #5a6268; }
+        .result-card { display: none; }
+        .status-container { display: none; align-items: center; justify-content: center; gap: 1rem; margin-top: 1rem; }
+        #timer { font-size: 1rem; font-weight: 600; color: #555; }
+        .spinner { border: 4px solid rgba(0, 0, 0, 0.1); width: 24px; height: 24px; border-radius: 50%; border-left-color: var(--secondary-color); animation: spin 1s ease infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .examples-section { text-align: center; margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--light-gray); }
+        .examples-section h2 { font-size: 1.8rem; margin-bottom: 1.5rem; line-height: 1.4; } /* NEW: Added line-height for better spacing */
+        .result-actions { display: flex; gap: 1rem; justify-content: center; margin-top: 1rem; }
+        #download-btn { display: none; padding: 0.7rem 1.5rem; background-color: var(--primary-color); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; transition: background-color 0.2s ease; }
+        #download-btn:hover { background-color: var(--secondary-color); }
+        /* Removed post-btn CSS since we don't store examples */
+        .example-card { background-color: var(--card-background-color); border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); padding: 2.5rem 2rem 2rem 2rem; margin-bottom: 1.5rem; text-align: center; min-height: 200px; }
+        .example { display: flex; justify-content: center; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+        .example img { width: 120px; height: 120px; object-fit: cover; border-radius: 8px; border: 2px solid transparent; transition: transform 0.2s ease, border-color 0.2s ease; }
+        .example:hover img { transform: scale(1.05); border-color: var(--secondary-color); }
+        .example-op { font-size: 2rem; font-weight: 600; color: var(--text-color); }
+        .example-try-btn { padding: 0.8rem 2rem; font-size: 1rem; font-weight: 600; background: linear-gradient(45deg, var(--primary-color), var(--secondary-color)); color: white; border: none; border-radius: 8px; cursor: pointer; transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        .example-try-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(37, 117, 252, 0.3); }
+        /* Removed load-more-btn CSS since we only have one example */
+        .examples-loading { text-align: center; padding: 2rem; }
+        .examples-loading .spinner { margin: 0 auto; }
+        .examples-container { min-height: 200px; }
+        
+        /* Mobile Responsive Design */
+        @media (max-width: 768px) {
+            body { padding: 1rem; }
+            header h1 { font-size: 2.2rem; }
+            header p { font-size: 1rem; }
+            .main-content { grid-template-columns: 1fr; gap: 1.5rem; }
+            .card { padding: 1rem; }
+            .image-preview-container { height: 200px; }
+            .example img { width: 80px; height: 80px; }
+            .example-op { font-size: 1.5rem; }
+            .example-card { padding: 1.5rem 1rem; min-height: 180px; }
+            .actions { flex-direction: column; gap: 0.8rem; }
+            #stylize-btn, #reset-btn { width: 100%; padding: 1rem; }
+            .example-try-btn { width: 100%; padding: 0.8rem 1rem; }
+            .result-actions { flex-direction: column; gap: 0.8rem; }
+            #download-btn { width: 100%; padding: 0.8rem 1rem; }
+            /* Removed load-more-btn responsive CSS */
+        }
+        
+        @media (max-width: 480px) {
+            body { padding: 0.5rem; }
+            header h1 { font-size: 1.8rem; }
+            .card { padding: 0.8rem; }
+            .image-preview-container { height: 150px; }
+            .example img { width: 60px; height: 60px; }
+            .example-op { font-size: 1.2rem; }
+            .example-card { padding: 1rem 0.8rem; min-height: 160px; }
+            .slider-group label { font-size: 0.9rem; }
+            .result-actions { flex-direction: column; gap: 0.6rem; }
+            #download-btn { width: 100%; padding: 0.6rem 0.8rem; font-size: 0.9rem; }
+            /* Removed load-more-btn responsive CSS */
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Artistic Style Transfer</h1>
+            <p>Merge the style of one image with the content of another. Upload your images or try one of the examples below.</p>
+        </header>
+
+        <form id="upload-form">
+            <div class="main-content">
+                <div class="card">
+                    <h2>Content Image</h2>
+                    <div class="image-preview-container"><img id="content-preview" class="image-preview" src="#" alt="Content Preview"/></div>
+                    <label for="content-file" class="upload-label">Upload Content</label>
+                    <input type="file" id="content-file" name="content_image" accept="image/*">
+                </div>
+                <div class="card">
+                    <h2>Style Image</h2>
+                    <div class="image-preview-container"><img id="style-preview" class="image-preview" src="#" alt="Style Preview"/></div>
+                    <label for="style-file" class="upload-label">Upload Style</label>
+                    <input type="file" id="style-file" name="style_image" accept="image/*">
+                </div>
+                <div class="card settings-card">
+                    <h2>Settings</h2>
+                    <div class="slider-group">
+                        <label for="steps">Iterations (Quality vs. Speed): <span id="steps-value">300</span></label>
+                        <input type="range" id="steps" name="num_steps" min="50" max="500" value="300" step="10" class="slider">
+                    </div>
+                    <div class="slider-group">
+                        <label for="style-weight">Style Weight (How "artsy"): <span id="style-weight-value">1e6</span></label>
+                        <input type="range" id="style-weight" name="style_weight" min="1000" max="10000000" value="1000000" step="1000" class="slider">
+                    </div>
+                </div>
+            </div>
+            <div class="actions">
+                <button type="submit" id="stylize-btn">Stylize Image</button>
+                <button type="button" id="reset-btn">Reset</button>
+            </div>
+        </form>
+
+        <div class="card result-card" id="result-card">
+            <h2>Result</h2>
+            <div class="image-preview-container" style="height: 400px;"><img id="result-image" class="image-preview" src="#" alt="Result Image"/></div>
+            <div class="result-actions">
+                <a href="#" id="download-btn" download="stylized-image.jpg">Download Image</a>
+                <!-- Removed post button since we don't store examples -->
+            </div>
+            <div class="status-container" id="status-container">
+                <div id="spinner" class="spinner"></div>
+                <p id="timer">Elapsed time: 00:00</p>
+            </div>
+            <p id="status-text" style="text-align: center; margin-top: 1rem; color: #666;"></p>
+        </div>
+        
+        <section class="examples-section">
+            <h2>Or<br>Try an Example</h2>
+            
+            <div class="examples-container" id="examples-container">
+                <div class="examples-loading" id="examples-loading">
+                    <div class="spinner"></div>
+                    <p>Loading examples...</p>
+                </div>
+            </div>
+            
+            <!-- Removed Load More button since we only have one example -->
+        </section>
+    </div>
+
+    <script>
+        // --- Variable declarations ---
+        const contentFileInput = document.getElementById('content-file');
+        const styleFileInput = document.getElementById('style-file');
+        const contentPreview = document.getElementById('content-preview');
+        const stylePreview = document.getElementById('style-preview');
+        const uploadForm = document.getElementById('upload-form');
+        const stylizeBtn = document.getElementById('stylize-btn');
+        const resultCard = document.getElementById('result-card');
+        const resultImage = document.getElementById('result-image');
+        const stepsSlider = document.getElementById('steps');
+        const stepsValue = document.getElementById('steps-value');
+        const styleWeightSlider = document.getElementById('style-weight');
+        const styleWeightValue = document.getElementById('style-weight-value');
+        const statusContainer = document.getElementById('status-container');
+        const timerElement = document.getElementById('timer');
+        const downloadBtn = document.getElementById('download-btn');
+        // Removed postBtn variable since we don't store examples
+        const resetBtn = document.getElementById('reset-btn');
+        const contentUploadLabel = document.querySelector('label[for="content-file"]');
+        const styleUploadLabel = document.querySelector('label[for="style-file"]');
+        const examplesContainer = document.getElementById('examples-container');
+        const examplesLoading = document.getElementById('examples-loading');
+        const statusText = document.getElementById('status-text');
+        // Removed loadMoreBtn variable since we only have one example
+        let timerInterval;
+        // Removed pagination variables since we only have one example
+
+        // --- Event Listeners ---
+        contentFileInput.addEventListener('change', () => previewImage(contentFileInput, contentPreview));
+        styleFileInput.addEventListener('change', () => previewImage(styleFileInput, stylePreview));
+        stepsSlider.addEventListener('input', () => { stepsValue.textContent = stepsSlider.value; });
+        styleWeightSlider.addEventListener('input', () => { styleWeightValue.textContent = Number(styleWeightSlider.value).toExponential(0); });
+        resetBtn.addEventListener('click', resetInterface);
+        // Removed postBtn event listener since we don't store examples
+        // Removed loadMoreBtn event listener since we only have one example
+        
+        // Load examples on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadExamples();
+            statusText.textContent = 'Upload images and click Stylize';
+        });
+        
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', cleanupOnExit);
+        window.addEventListener('pagehide', cleanupOnExit);
+        
+        // Also cleanup when user starts new upload
+        contentFileInput.addEventListener('change', () => {
+            if (contentFileInput.files.length > 0) {
+                cleanupOnExit();
+            }
+        });
+        styleFileInput.addEventListener('change', () => {
+            if (styleFileInput.files.length > 0) {
+                cleanupOnExit();
+            }
+        });
+
+        // --- Main Functions ---
+        function previewImage(input, previewElement) {
+            const file = input.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    previewElement.src = e.target.result;
+                    previewElement.classList.add('active');
+                }
+                reader.readAsDataURL(file);
+            }
+        }
+
+        uploadForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            if (!contentFileInput.files[0] || !styleFileInput.files[0]) {
+                alert('Please upload both a content and a style image.');
+                return;
+            }
+
+            // Disable all controls during processing
+            stylizeBtn.disabled = true;
+            stepsSlider.disabled = true;
+            styleWeightSlider.disabled = true;
+            contentFileInput.disabled = true;
+            styleFileInput.disabled = true;
+            contentUploadLabel.disabled = true;
+            styleUploadLabel.disabled = true;
+            
+            stylizeBtn.innerText = 'Stylizing...';
+            resultCard.style.display = 'block';
+            resultImage.classList.remove('active');
+            downloadBtn.style.display = 'none';
+            statusContainer.style.display = 'flex';
+            
+            // Clear any previous status messages
+            statusText.textContent = '';
+            
+            const startTime = Date.now();
+            timerInterval = setInterval(() => {
+                const seconds = Math.floor((Date.now() - startTime) / 1000);
+                const mins = String(Math.floor(seconds / 60)).padStart(2, '0');
+                const secs = String(seconds % 60).padStart(2, '0');
+                timerElement.textContent = `Elapsed time: ${mins}:${secs}`;
+            }, 1000);
+
+            const formData = new FormData();
+            formData.append('content_image', contentFileInput.files[0]);
+            formData.append('style_image', styleFileInput.files[0]);
+            formData.append('num_steps', stepsSlider.value);
+            formData.append('style_weight', styleWeightSlider.value);
+
+            try {
+                const response = await fetch('/stylize', { method: 'POST', body: formData });
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const data = await response.json();
+                const outputUrl = data.output_url + '?t=' + new Date().getTime();
+                resultImage.src = outputUrl;
+                resultImage.classList.add('active');
+                downloadBtn.href = outputUrl;
+                downloadBtn.style.display = 'inline-block';
+                // Removed post button display since we don't store examples
+            } catch (error) {
+                console.error('Error during stylization:', error);
+                alert('An error occurred. Please try again.');
+            } finally {
+                clearInterval(timerInterval);
+                statusContainer.style.display = 'none';
+                
+                // Re-enable all controls
+                stylizeBtn.disabled = false;
+                stepsSlider.disabled = false;
+                styleWeightSlider.disabled = false;
+                contentFileInput.disabled = false;
+                styleFileInput.disabled = false;
+                contentUploadLabel.disabled = false;
+                styleUploadLabel.disabled = false;
+                stylizeBtn.innerText = 'Stylize Image';
+            }
+        });
+
+        async function loadExample(element) {
+            // Use the new loadExampleDirectly function
+            await loadExampleDirectly();
+        }
+
+        function resetInterface() {
+            contentFileInput.value = null;
+            styleFileInput.value = null;
+            contentPreview.classList.remove('active');
+            stylePreview.classList.remove('active');
+            contentPreview.removeAttribute('src');
+            stylePreview.removeAttribute('src');
+            stepsSlider.value = 300;
+            stepsValue.textContent = '300';
+            styleWeightSlider.value = 1000000;
+            styleWeightValue.textContent = '1e6';
+            resultCard.style.display = 'none';
+            downloadBtn.style.display = 'none';
+            // Removed post button display since we don't store examples
+            
+            // Clear status message
+            statusText.textContent = 'Upload images and click Stylize';
+            
+            // Ensure all controls are enabled after reset
+            stylizeBtn.disabled = false;
+            stepsSlider.disabled = false;
+            styleWeightSlider.disabled = false;
+            contentFileInput.disabled = false;
+            styleFileInput.disabled = false;
+            contentUploadLabel.disabled = false;
+            styleUploadLabel.disabled = false;
+            stylizeBtn.innerText = 'Stylize Image';
+        }
+
+        // --- New Functions ---
+        // Removed postExample function since we don't store examples
+
+        async function loadExamples() {
+            try {
+                examplesLoading.style.display = 'block';
+                
+                const response = await fetch('/get-examples');
+                const data = await response.json();
+                
+                if (data.example) {
+                    examplesContainer.innerHTML = '';
+                    const exampleCard = createExampleCard(data.example);
+                    examplesContainer.appendChild(exampleCard);
+                } else {
+                    examplesContainer.innerHTML = '<p>No example available.</p>';
+                }
+                
+            } catch (error) {
+                console.error('Error loading example:', error);
+                examplesContainer.innerHTML = '<p>Error loading example. Please try again.</p>';
+            } finally {
+                examplesLoading.style.display = 'none';
+            }
+        }
+
+        async function loadExampleDirectly() {
+            try {
+                const response = await fetch('/load-example', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Load content image
+                    contentPreview.src = data.content_url;
+                    contentPreview.classList.add('active');
+                    contentUploadLabel.style.display = 'none';
+                    
+                    // Load style image
+                    stylePreview.src = data.style_url;
+                    stylePreview.classList.add('active');
+                    styleUploadLabel.style.display = 'none';
+                    
+                    // Load result image directly
+                    resultImage.src = data.output_url;
+                    resultImage.classList.add('active');
+                    downloadBtn.href = data.output_url;
+                    downloadBtn.style.display = 'inline-block';
+                    
+                    // Show result card
+                    resultCard.style.display = 'block';
+                    
+                    // Update status
+                    statusText.textContent = data.message;
+                    
+                    // Create fake file objects for the inputs so stylize works
+                    await createFakeFiles(data.content_url, data.style_url);
+                    
+                } else {
+                    statusText.textContent = 'Error loading example: ' + data.error;
+                }
+                
+            } catch (error) {
+                console.error('Error loading example:', error);
+                statusText.textContent = 'Error loading example. Please try again.';
+            }
+        }
+
+        async function createFakeFiles(contentUrl, styleUrl) {
+            try {
+                // Fetch the images and create File objects
+                const [contentRes, styleRes] = await Promise.all([
+                    fetch(contentUrl),
+                    fetch(styleUrl)
+                ]);
+                
+                const [contentBlob, styleBlob] = await Promise.all([
+                    contentRes.blob(),
+                    styleRes.blob()
+                ]);
+                
+                // Create File objects
+                const contentFile = new File([contentBlob], "content.jpg", { type: "image/jpeg" });
+                const styleFile = new File([styleBlob], "style.jpg", { type: "image/jpeg" });
+                
+                // Create DataTransfer objects and assign to inputs
+                const contentDataTransfer = new DataTransfer();
+                contentDataTransfer.items.add(contentFile);
+                contentFileInput.files = contentDataTransfer.files;
+                
+                const styleDataTransfer = new DataTransfer();
+                styleDataTransfer.items.add(styleFile);
+                styleFileInput.files = styleDataTransfer.files;
+                
+            } catch (error) {
+                console.error("Failed to create fake files:", error);
+            }
+        }
+
+        function createExampleCard(example) {
+            const card = document.createElement('div');
+            card.className = 'example-card';
+            
+            const isUserGenerated = example.is_user_generated;
+            const badge = isUserGenerated ? '<span style="background: #4CAF50; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; margin-bottom: 1rem; display: inline-block;">User Created</span>' : '';
+            
+            card.innerHTML = `
+                ${badge}
+                <div class="example">
+                    <img src="${example.content}" alt="Content Image">
+                    <span class="example-op">+</span>
+                    <img src="${example.style}" alt="Style Image">
+                </div>
+                <button class="example-try-btn" onclick="loadExample(this)" 
+                        data-content="${example.content}"
+                        data-style="${example.style}" 
+                        data-output="${example.output}"
+                        data-steps="300"
+                        data-weight="1000000">
+                    Try This Example
+                </button>
+            `;
+            
+            return card;
+        }
+
+        // Removed loadMoreExamples function since we only have one example
+
+        async function cleanupOnExit() {
+            try {
+                await fetch('/cleanup', { method: 'POST' });
+            } catch (error) {
+                console.error('Error during cleanup:', error);
+            }
+        }
+    </script>
+</body>
+</html>
